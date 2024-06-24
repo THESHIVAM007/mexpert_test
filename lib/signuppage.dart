@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -16,7 +17,7 @@ class _SignUpPageState extends State<SignUpPage> {
   TextEditingController confirmpasscontroller = TextEditingController();
   TextEditingController phonecontroller = TextEditingController();
   
-  Future<void> signInWithGoogle() async {
+Future<void> signInWithGoogle() async {
     try {
       final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
 
@@ -24,27 +25,42 @@ class _SignUpPageState extends State<SignUpPage> {
         return;
       }
 
-      final GoogleSignInAuthentication googleAuth =
-          await googleUser.authentication;
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
 
       final AuthCredential credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
 
-      // ignore: unused_local_variable
-      final UserCredential userCredential =
-          await FirebaseAuth.instance.signInWithCredential(credential);
-          
+      final UserCredential userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
+      final User? user = userCredential.user;
 
-      // Successful sign-in
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Sign-in Successfull")));
+      if (user != null) {
+        // Check if user exists in Firestore
+        final userDoc = FirebaseFirestore.instance.collection('users').doc(user.uid);
+        final docSnapshot = await userDoc.get();
 
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (context) => const Homepage(), // Replace with your HomePage widget
-        ),
-      );
+        if (!docSnapshot.exists) {
+          // Add user to Firestore
+          await userDoc.set({
+            'uid': user.uid,
+            'email': user.email,
+            'displayName': user.displayName,
+            'photoURL': user.photoURL,
+          });
+        }
+
+        // Successful sign-in
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Sign-in Successful")),
+        );
+
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => const Homepage(), // Replace with your HomePage widget
+          ),
+        );
+      }
     } on Exception catch (e) {
       print('exception->$e');
     }
